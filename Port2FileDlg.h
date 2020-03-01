@@ -7,6 +7,11 @@
 #include "RedirectPort.h"
 #include <vector>
 #include "label.h"
+#include <string> //jaca
+#include <iostream> //jaca
+
+//jaca
+// #include "Commctrl.h "
 
 // CRedirectDlg dialog
 class CRedirectDlg : public CDialog
@@ -24,12 +29,14 @@ public:
 private:
 	CListCtrl m_ListPorts;
 	CImageList m_IconList; 
-	CLabel m_HomeHlink;
 
 	CString m_sErrorStatus;
+	CString m_sLogFileBase;
 	CString m_sLogFile;
+	CString m_sLogFile2;
 	CString m_sRecvBytes;
 	CString m_sTotalFileSize;
+	CString m_sTotal2FileSize;
 
 	CComboBox m_cbBaudrate;
 	CComboBox m_cbDataBits;
@@ -39,20 +46,27 @@ private:
 
 	BOOL m_bFileAppend;
 	int  m_iCurItemSel;   
+	//jaca
+	int m_minToTray;
+	BOOL m_minimizeOnComOpen;
 	 
 		    
 	std::vector<CRedirectPort*> m_Ports;
 	
 	void GetAvailablePorts();
-	void UpdateSettings   ();
-	//void StartLogging     ( int iPort );
+	void UpdateSettings();
+	void UpdateCounters();
 		
 	LRESULT OnWriteUpdate ( WPARAM, LPARAM );
 	LRESULT OnWriteStatus ( WPARAM, LPARAM );
+	LRESULT OnTrayMsg ( WPARAM, LPARAM );
 	
 // Implementation
 protected:
 	HICON m_hIcon;
+	HICON m_hIcon2;
+	//jaca
+	NOTIFYICONDATA m_nid = {};
 
 	// Generated message map functions
 	virtual BOOL OnInitDialog();
@@ -64,7 +78,6 @@ public:
 	afx_msg void OnBnClickedBtView();
 	afx_msg void OnBnClickedBtStartlog();
 	afx_msg void OnBnClickedCheckLog();
-	afx_msg void OnBnClickedBtHelp();
 
 protected:
 	virtual void OnOK();
@@ -85,4 +98,9 @@ public:
 	afx_msg void OnCbnSelchangeCbFc        ();
 	afx_msg void OnBnClickedCheckAppend    ();
 	afx_msg void OnEnChangeEdLogfile       ();
+	afx_msg void OnBnClickedButton1();
+//	afx_msg void OnActivate(UINT nState, CWnd* pWndOther, BOOL bMinimized);
+//	afx_msg void OnSetFocus(CWnd* pOldWnd);
+//	afx_msg void OnSetFocus(CWnd* pOldWnd);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 };

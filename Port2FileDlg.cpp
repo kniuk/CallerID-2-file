@@ -14,6 +14,8 @@
 const TCHAR STRING_DISABLE [] =  _T("[Stopped]");
 const TCHAR STRING_ENABLE  [] =  _T("[Started]");
 const TCHAR STRING_ERROR   [] =  _T("[Error]");  
+//jaca
+const UINT WM_TRAY = WM_USER + 1;
 
 
 /////////////////////////////////////////////////////////////
@@ -26,12 +28,17 @@ CRedirectDlg::CRedirectDlg(CWnd* pParent /*=NULL*/)
 	: CDialog(CRedirectDlg::IDD, pParent)
 	, m_bFileAppend(FALSE)
 	, m_sLogFile(_T(""))
+	, m_sLogFile2(_T(""))
 	, m_iCurItemSel(0)
 	, m_sRecvBytes(_T("0 bytes"))
-	, m_sTotalFileSize(_T("0 bytes"))
+	, m_sTotalFileSize(_T("0 calls"))
+	, m_sTotal2FileSize(_T("0 bytes"))
 	, m_sErrorStatus(_T(""))
+	, m_minToTray(0)
+	, m_minimizeOnComOpen(FALSE)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	m_hIcon2 = AfxGetApp()->LoadIcon(IDI_PLUG);
 }
 
 void CRedirectDlg::DoDataExchange(CDataExchange* pDX)
@@ -47,17 +54,15 @@ void CRedirectDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_ED_LOGFILE, m_sLogFile);
 	DDX_Text(pDX, IDC_STATIC_RECV,  m_sRecvBytes);
 	DDX_Text(pDX, IDC_STATIC_TOTAL, m_sTotalFileSize);
-	DDX_Control(pDX, IDC_STATIC_HOME, m_HomeHlink);
+	DDX_Text(pDX, IDC_STATIC_TOTAL2, m_sTotal2FileSize);
 	DDX_Text(pDX, IDC_STATIC_STATUS, m_sErrorStatus);
 }
 
 BEGIN_MESSAGE_MAP(CRedirectDlg, CDialog)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
-	//}}AFX_MSG_MAP
 	ON_BN_CLICKED(IDC_BT_VIEW, OnBnClickedBtView)
 	ON_BN_CLICKED(IDC_BT_STARTLOG, OnBnClickedBtStartlog)
-	ON_BN_CLICKED(IDC_BT_HELP, OnBnClickedBtHelp)
 	ON_BN_CLICKED(IDC_CHECK_APPEND, OnBnClickedCheckAppend)
 	ON_CBN_SELCHANGE(IDC_CB_BAUDRATE, OnCbnSelchangeCbBaudrate)
 	ON_CBN_SELCHANGE(IDC_CB_DATABITS, OnCbnSelchangeCbDatabits)
@@ -68,7 +73,9 @@ BEGIN_MESSAGE_MAP(CRedirectDlg, CDialog)
 	ON_MESSAGE  (WM_USER_UPDATE_WND, OnWriteUpdate )
 	ON_MESSAGE  (WM_USER_CHANGE_STATUS, OnWriteStatus  )
 	ON_NOTIFY   (NM_CUSTOMDRAW,  IDC_LIST_PORTS, OnCustomdrawList)
-	ON_COMMAND(ID_HELP, OnBnClickedBtHelp)
+	ON_BN_CLICKED(IDC_BUTTON1, &CRedirectDlg::OnBnClickedButton1)
+	ON_MESSAGE(WM_TRAY, OnTrayMsg)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -83,16 +90,9 @@ BOOL CRedirectDlg::OnInitDialog()
 
 	// comm initialization 
 	m_IconList.Create( 16, 16, ILC_MASK | ILC_COLOR24, 1, 1 );  
-	m_IconList.Add( AfxGetApp() ->LoadIcon( MAKEINTRESOURCE( IDR_MAINFRAME ) ) );
+	m_IconList.Add( AfxGetApp() ->LoadIcon( MAKEINTRESOURCE( IDI_PLUG ) ) );
 	m_ListPorts.SetExtendedStyle( LVS_EX_FULLROWSELECT );
 	m_ListPorts.SetImageList( &m_IconList, LVSIL_SMALL );
-
-	m_HomeHlink.SetLink( true, false );
-	m_HomeHlink.SetLinkCursor( LoadCursor(NULL, MAKEINTRESOURCE(32649) ) );
-	m_HomeHlink.SetHyperLink( CString( _T("http:\\\\www.eltima.com\\products") ) );
-	m_HomeHlink.SetFontBold( true );
-	m_HomeHlink.SetTextColor( RGB( 0, 0, 255 ) );
-
 
 	CWnd* pWnd = (CWnd*)GetDlgItem( IDC_LIST_PORTS );
 	CRect rect;
@@ -100,7 +100,7 @@ BOOL CRedirectDlg::OnInitDialog()
 	m_ListPorts.InsertColumn( 0, _T(""), LVCFMT_LEFT, int(rect.Width() / 2 - 0.05 * rect.Width())  );
 	m_ListPorts.InsertColumn( 1, _T(""), LVCFMT_LEFT, int(rect.Width() / 2 - 0.05 * rect.Width())  );
 	
-	GetAvailablePorts();
+	m_minimizeOnComOpen = true;
 
 	// fill controls 
     for ( int i=0; i<NUM_BAUDRATE; i++ )
@@ -133,6 +133,39 @@ BOOL CRedirectDlg::OnInitDialog()
 	}
 	m_cbFC.SetCurSel( 2 );
 
+	GetAvailablePorts();
+
+	//jaca
+	// Declare NOTIFYICONDATA details. 
+	// Error handling is omitted here for brevity. Do not omit it in your code.
+
+	m_nid.cbSize = sizeof(m_nid);
+	m_nid.hWnd = GetSafeHwnd(); //hWnd;
+	m_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;// | NIF_GUID;
+	m_nid.uCallbackMessage = WM_TRAY;
+
+	// Note: This is an example GUID only and should not be used.
+	// Normally, you should use a GUID-generating tool to provide the value to
+	// assign to guidItem.
+	
+	//static const GUID myGUID =
+	//{ 0x23977b55, 0x10e0, 0x4041, {0xb8, 0x62, 0xb1, 0x95, 0x41, 0x96, 0x36, 0x69} };
+	//m_nid.guidItem = myGUID;
+
+	//m_nid.guidItem = guid;
+
+	// This text will be shown as the icon's tooltip.
+	strcpy_s(m_nid.szTip, ARRAYSIZE(m_nid.szTip), "CallerID 2 file");
+
+	// Load the icon for high DPI.
+	//LoadIconMetric(GetModuleHandleA(NULL), MAKEINTRESOURCE(IDI_SMALL), LIM_SMALL, &(m_nid.hIcon));
+	//m_nid.hIcon = LoadIcon(GetModuleHandleA(NULL), MAKEINTRESOURCE(IDI_APPLICATION));
+	m_nid.hIcon = m_hIcon; // = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+
+	// Show the notification.
+	Shell_NotifyIcon(NIM_ADD, &m_nid) ? S_OK : E_FAIL;
+	SetTimer(1, 5000, NULL); //set timer to hide Window
+	//jaca koniec
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 
@@ -166,8 +199,6 @@ HCURSOR CRedirectDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////////
 //
 //							control handling 
@@ -176,7 +207,7 @@ HCURSOR CRedirectDlg::OnQueryDragIcon()
 void CRedirectDlg::OnEnChangeEdLogfile()
 {
 	UpdateData();
-	if ( m_sLogFile.GetLength() )
+	if ( m_sLogFile.GetLength() && m_sLogFile2.GetLength() )
 	{
 		CWnd* pWnd = (CWnd*)GetDlgItem( IDC_BT_STARTLOG );
 		pWnd ->EnableWindow( TRUE );
@@ -188,6 +219,7 @@ void CRedirectDlg::OnEnChangeEdLogfile()
 	}
 
 	m_Ports[ m_iCurItemSel ] ->m_sLogFile = m_sLogFile; 
+	m_Ports[m_iCurItemSel]->m_sLogFile2 = m_sLogFile2;
 }
 
 void CRedirectDlg::OnBnClickedBtView()
@@ -198,14 +230,16 @@ void CRedirectDlg::OnBnClickedBtView()
 	if ( dlg.DoModal() == IDOK )
 	{
 		m_sLogFile = dlg.GetPathName();
+		m_sLogFile2 = dlg.GetPathName() + ".dbg";
 		
-		if ( m_sLogFile.GetLength() )
+		if ( m_sLogFile.GetLength() && m_sLogFile2.GetLength() )
 		{
 			CWnd* pWnd = (CWnd*)GetDlgItem( IDC_BT_STARTLOG );
 			pWnd ->EnableWindow( TRUE );
 		}
 
 		m_Ports[ m_iCurItemSel ] ->m_sLogFile = m_sLogFile;
+		m_Ports[m_iCurItemSel]->m_sLogFile2 = m_sLogFile2;
 	}
 
 	CEdit* pEdit = (CEdit*)GetDlgItem( IDC_ED_LOGFILE );
@@ -221,29 +255,13 @@ void CRedirectDlg::OnBnClickedBtStartlog()
 	{
 		// stop logging  
 		m_Ports[ m_iCurItemSel ] ->Close();
-
-		CWnd* pWnd = (CWnd*)GetDlgItem( IDC_BT_STARTLOG );
-		pWnd ->SetWindowText( _T("Start logging") );
-
-		pWnd = (CWnd*)GetDlgItem( IDC_ED_LOGFILE );
-		pWnd ->EnableWindow( TRUE );
-		
-		pWnd = (CWnd*)GetDlgItem( IDC_BT_VIEW );
-		pWnd ->EnableWindow( TRUE );
-	
-		pWnd = (CWnd*)GetDlgItem( IDC_CHECK_APPEND );
-		pWnd ->EnableWindow( TRUE );
-
-		m_ListPorts.SetItemText( m_iCurItemSel, 1, STRING_DISABLE );
-
 		m_Ports[ m_iCurItemSel ] ->m_bLogStarted = FALSE;
-
 		m_sErrorStatus = m_Ports[m_iCurItemSel] ->m_sStatusMessage;
-		UpdateData( FALSE );
+		UpdateSettings();
 	}
 	else
 	{
-		//////////////////////////////////////////////
+		// run logging
 		CString sBaudrate;
 		m_cbBaudrate.GetLBText( m_cbBaudrate.GetCurSel(), sBaudrate );
 		DWORD dwBaudrate = _ttoi( sBaudrate ); 
@@ -254,57 +272,26 @@ void CRedirectDlg::OnBnClickedBtStartlog()
 		
 		UpdateData();
 		m_Ports[ m_iCurItemSel ] ->m_sLogFile = m_sLogFile;
+		m_Ports[m_iCurItemSel]->m_sLogFile2 = m_sLogFile2;
 
-		// run logging
 		if ( (iBits != -1 && iParity != -1 && iStopbits != -1) &&
 			 m_Ports[ m_iCurItemSel ] ->Open( dwBaudrate, iBits, iParity, iStopbits, iFC ) )
 		{
-			CWnd* pWnd = (CWnd*)GetDlgItem( IDC_BT_STARTLOG );
-			pWnd ->SetWindowText( _T("Stop logging") );
-
-			pWnd = (CWnd*)GetDlgItem( IDC_ED_LOGFILE );
-			pWnd ->EnableWindow( FALSE );
-			
-			pWnd = (CWnd*)GetDlgItem( IDC_BT_VIEW );
-			pWnd ->EnableWindow( FALSE );
-		
-			pWnd = (CWnd*)GetDlgItem( IDC_CHECK_APPEND );
-			pWnd ->EnableWindow( FALSE );
-
-			m_ListPorts.SetItemText( m_iCurItemSel, 1, STRING_ENABLE );
-
 			m_Ports[ m_iCurItemSel ] ->m_bLogStarted = TRUE;
+			UpdateSettings();
 		}
 		else
 		{
 			m_ListPorts.SetItemText( m_iCurItemSel, 1, STRING_ERROR );					
 		}
 	}
-
-	m_ListPorts.RedrawItems( m_iCurItemSel,  m_iCurItemSel );
-	m_ListPorts.Invalidate( TRUE );
-	m_ListPorts.UpdateWindow();
 }
 
-void CRedirectDlg::OnBnClickedBtHelp()
-{
-	CString str;
-	TCHAR	*Buf = str.GetBufferSetLength (1024);
-	GetModuleFileName (NULL, Buf, 1024);
-	*(_tcsrchr (Buf, _T('\\'))) = 0;
-	str.ReleaseBuffer ();
-	str += _T("\\");
-	str += _T("data_logger.chm");
-	ShellExecute(NULL, _T("open"), str, NULL, NULL, SW_SHOWNORMAL );
-}
-
-// enable logging 
 void CRedirectDlg::OnCbnSelchangeCbBaudrate()
 {
 	CString sBaudrate;
 	m_cbBaudrate.GetLBText( m_cbBaudrate.GetCurSel(), sBaudrate );
 	m_Ports[ m_iCurItemSel ] ->m_dwBaudRate = _ttoi( sBaudrate ); 
-
 	m_Ports[ m_iCurItemSel ] ->SetBaudrate( m_Ports[ m_iCurItemSel ] ->m_dwBaudRate ); 
 }
 
@@ -338,11 +325,6 @@ void CRedirectDlg::OnBnClickedCheckAppend()
 	m_Ports[m_iCurItemSel] ->m_bAppend = m_bFileAppend;
 }
 
-////////////////////////////////////////////////////////////////////////////////////
-//
-//							control handling 
-//
-/////////////////////////////////////////////////////////////////////////////////////
 void CRedirectDlg::OnOK()
 {
 	OnBnClickedBtStartlog();
@@ -350,7 +332,8 @@ void CRedirectDlg::OnOK()
 
 void CRedirectDlg::OnCancel()
 {
-	if( MessageBox( _T("Do you really want to quit? All logging tasks will be halted."), _T("Data Logger"), 
+	//if( MessageBox( _T("Czy na pewno chcesz zamkn¹æ? Odczyt dzwoni¹cych numerów nie bêdzie mo¿liwy."), _T("CLIP2file"), 
+	if (MessageBox(_T("Really close ? It will disable recognition of incoming calls numbers."), _T("CLIP2file"),
 					MB_ICONQUESTION | MB_YESNO ) == IDYES )
 	{
 		for ( UINT i=0; i<m_Ports.size(); i++ )
@@ -359,7 +342,8 @@ void CRedirectDlg::OnCancel()
 			pPort ->SaveSettings();
 			delete pPort; 
 		}
-
+		//jaca
+		Shell_NotifyIcon(NIM_DELETE, &m_nid);
 		CDialog::OnCancel();
 	}
 }
@@ -390,11 +374,31 @@ BOOL CRedirectDlg::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult)
 
 LRESULT CRedirectDlg::OnWriteUpdate ( WPARAM, LPARAM )
 {
-	m_sTotalFileSize.Format( _T("%d bytes"),  m_Ports[m_iCurItemSel] ->GetFileTotalBytes  () );
-	m_sRecvBytes.Format    ( _T("%d bytes"),  m_Ports[m_iCurItemSel] ->GetFileWrittenBytes() );
+	UpdateCounters();
 
 	UpdateData( FALSE );
 	
+	return 0;
+}
+
+LRESULT CRedirectDlg::OnTrayMsg  ( WPARAM, LPARAM lParam)
+{
+	switch (lParam)
+	{
+	case WM_LBUTTONDBLCLK:
+		if (m_minToTray==2) {
+			m_minToTray = 0;
+			ShowWindow(SW_SHOW);
+			BringWindowToTop();
+			UpdateWindow();
+		}
+		else {
+			m_minToTray = 2;
+			ShowWindow(SW_HIDE);
+			UpdateWindow();
+		}
+		break;
+	}
 	return 0;
 }
 
@@ -410,9 +414,58 @@ LRESULT CRedirectDlg::OnWriteStatus ( WPARAM wp, LPARAM lp )
 	{
 		m_ListPorts.SetItemText( (int)wp, 1, STRING_ERROR );	
 	}
-		
 	UpdateData( FALSE ); 
 	return 0;
+}
+
+void CRedirectDlg::OnCustomdrawList(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	NMLVCUSTOMDRAW* pLVCD = reinterpret_cast<NMLVCUSTOMDRAW*>(pNMHDR);
+
+	*pResult = 0;
+
+	if (CDDS_PREPAINT == pLVCD->nmcd.dwDrawStage)
+	{
+		*pResult = CDRF_NOTIFYITEMDRAW;
+	}
+	else
+	{
+		if (CDDS_ITEM == pLVCD->nmcd.dwDrawStage)
+		{
+			TRACE("dfssdafas");
+		}
+
+
+		if (CDDS_ITEMPREPAINT == pLVCD->nmcd.dwDrawStage)
+		{
+			if (!m_Ports[pLVCD->nmcd.dwItemSpec]->m_bLogStarted)
+			{
+				pLVCD->clrText = RGB(128, 128, 128);
+			}
+
+			*pResult = CDRF_DODEFAULT;
+		}
+	}
+}
+
+void CRedirectDlg::OnBnClickedButton1()
+{
+	//jaca
+	m_minToTray = 2;
+	ShowWindow(SW_HIDE);
+	UpdateWindow();
+}
+
+void CRedirectDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	// TODO: Dodaj tutaj swój kod procedury obs³ugi komunikatów i/lub wywo³aj domyœlny
+	if (IsWindowVisible() && m_minToTray == 1) {
+		KillTimer(1);
+		m_minToTray = 2;
+		ShowWindow(SW_HIDE);
+		UpdateWindow();
+	}
+	CDialog::OnTimer(nIDEvent);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,13 +517,24 @@ void CRedirectDlg::GetAvailablePorts()
 				sCommDefaultPath += _T("port");
 				sCommDefaultPath += _T(".txt");
         		m_Ports[i] ->m_sLogFile = sCommDefaultPath;
+				m_Ports[i]->m_sLogFile2 = sCommDefaultPath + ".dbg";
 			}
 					
 			m_ListPorts.InsertItem( &item );
 			
 			if ( m_Ports[i] ->m_bLogStarted && m_Ports[ i ] ->Open()  )
 			{
+				//jaca
+				if (m_minimizeOnComOpen && m_minToTray==0) {
+					m_minToTray = 1; //trigger hiding window when possible (allow to show first, after dialog initialization)
+				}
+				//jaca koniec
 				m_ListPorts.SetItemText( item.iItem, 1, STRING_ENABLE );
+
+				//set started port as selected
+				m_ListPorts.EnsureVisible(item.iItem, FALSE);
+				m_ListPorts.SetFocus();
+				m_ListPorts.SetItemState(item.iItem, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
 			}
 			else
 			{
@@ -486,43 +550,78 @@ void CRedirectDlg::GetAvailablePorts()
 void CRedirectDlg::UpdateSettings()
 {
 	m_sLogFile = m_Ports[m_iCurItemSel] ->m_sLogFile;
+	m_sLogFile2 = m_Ports[m_iCurItemSel]->m_sLogFile2;
 
 	if ( m_Ports[ m_iCurItemSel ] ->m_bLogStarted )
 	{
-		CWnd* pWnd = (CWnd*)GetDlgItem( IDC_BT_STARTLOG );
-		pWnd ->SetWindowText( _T("Stop logging") );
+		CWnd* pWnd = (CWnd*)GetDlgItem(IDC_BT_STARTLOG);
+		pWnd->SetWindowText(_T("Stop logging"));
 
-		pWnd = (CWnd*)GetDlgItem( IDC_ED_LOGFILE );
-		pWnd ->EnableWindow( FALSE );
-		
-		pWnd = (CWnd*)GetDlgItem( IDC_BT_VIEW );
-		pWnd ->EnableWindow( FALSE );
-	
-		pWnd = (CWnd*)GetDlgItem( IDC_CHECK_APPEND );
-		pWnd ->EnableWindow( FALSE );
+		pWnd = (CWnd*)GetDlgItem(IDC_ED_LOGFILE);
+		pWnd->EnableWindow(FALSE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_BT_VIEW);
+		pWnd->EnableWindow(FALSE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CHECK_APPEND);
+		pWnd->EnableWindow(FALSE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_BAUDRATE);
+		pWnd->EnableWindow(FALSE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_DATABITS);
+		pWnd->EnableWindow(FALSE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_PARITY);
+		pWnd->EnableWindow(FALSE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_STOPBITS);
+		pWnd->EnableWindow(FALSE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_FC);
+		pWnd->EnableWindow(FALSE);
+
+		m_ListPorts.SetItemText(m_iCurItemSel, 1, STRING_ENABLE);
+
 	}
 	else
 	{
-		CWnd* pWnd = (CWnd*)GetDlgItem( IDC_BT_STARTLOG );
-		pWnd ->SetWindowText( _T("Start logging") );
-
-		if ( m_sLogFile.GetLength() )
+		CWnd* pWnd = (CWnd*)GetDlgItem(IDC_BT_STARTLOG);
+		pWnd->SetWindowText(_T("Start logging"));
+		if (m_sLogFile.GetLength() && m_sLogFile2.GetLength())
 		{
-			pWnd ->EnableWindow( TRUE ); 
+			pWnd->EnableWindow(TRUE);
 		}
 		else
 		{
-			pWnd ->EnableWindow( FALSE ); 
+			pWnd->EnableWindow(FALSE);
 		}
-		
-		pWnd = (CWnd*)GetDlgItem( IDC_ED_LOGFILE );
-		pWnd ->EnableWindow( TRUE );
-		
-		pWnd = (CWnd*)GetDlgItem( IDC_BT_VIEW );
-		pWnd ->EnableWindow( TRUE );
-	
-		pWnd = (CWnd*)GetDlgItem( IDC_CHECK_APPEND );
-		pWnd ->EnableWindow( TRUE );
+
+		pWnd = (CWnd*)GetDlgItem(IDC_ED_LOGFILE);
+		pWnd->EnableWindow(TRUE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_BT_VIEW);
+		pWnd->EnableWindow(TRUE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CHECK_APPEND);
+		pWnd->EnableWindow(TRUE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_BAUDRATE);
+		pWnd->EnableWindow(TRUE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_DATABITS);
+		pWnd->EnableWindow(TRUE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_PARITY);
+		pWnd->EnableWindow(TRUE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_STOPBITS);
+		pWnd->EnableWindow(TRUE);
+
+		pWnd = (CWnd*)GetDlgItem(IDC_CB_FC);
+		pWnd->EnableWindow(TRUE);
+
+		m_ListPorts.SetItemText(m_iCurItemSel, 1, STRING_DISABLE);
 	}
 
 	m_bFileAppend = m_Ports[m_iCurItemSel] ->m_bAppend;
@@ -536,45 +635,24 @@ void CRedirectDlg::UpdateSettings()
 	m_cbStopBits.SetCurSel( m_Ports[m_iCurItemSel] ->m_iIndexStopBits );
 	m_cbFC.SetCurSel	  ( m_Ports[m_iCurItemSel] ->m_iIndexFlowCtrl );
 
-	m_sErrorStatus = m_Ports[m_iCurItemSel] ->m_sStatusMessage;
-    
-	CString sWrittenBytes, sTotalBytes;
-	sTotalBytes.Format  ( _T("%d bytes"),  m_Ports[m_iCurItemSel] ->GetFileTotalBytes()  );
-	sWrittenBytes.Format( _T("%d bytes"),  m_Ports[m_iCurItemSel] ->GetFileWrittenBytes() );
 
-	UpdateData( FALSE );
+	UpdateCounters();
 
-	CEdit* pEdit = (CEdit*)GetDlgItem( IDC_ED_LOGFILE );
+	UpdateData( FALSE ); //FALSE = UI controls updated with dialog member variables
+
+	CEdit* pEdit = ( CEdit*)GetDlgItem( IDC_ED_LOGFILE );
 	pEdit ->SetWindowText( m_sLogFile );
 	pEdit ->SetSel( m_sLogFile.GetLength() - 1, m_sLogFile.GetLength() );
+
+	m_ListPorts.RedrawItems(m_iCurItemSel, m_iCurItemSel);
+	m_ListPorts.Invalidate(TRUE);
+	m_ListPorts.UpdateWindow();
 }
 
-void CRedirectDlg::OnCustomdrawList ( NMHDR* pNMHDR, LRESULT* pResult )
+void CRedirectDlg::UpdateCounters()
 {
-	NMLVCUSTOMDRAW* pLVCD = reinterpret_cast<NMLVCUSTOMDRAW*>( pNMHDR );
-
-    *pResult = 0;
-
-	if ( CDDS_PREPAINT == pLVCD->nmcd.dwDrawStage )
-    {
-       *pResult = CDRF_NOTIFYITEMDRAW;
-    }
-    else 
-	{
-		if ( CDDS_ITEM == pLVCD->nmcd.dwDrawStage )
-		{
-			TRACE( "dfssdafas" );
-		}
-		
-		
-        if ( CDDS_ITEMPREPAINT == pLVCD->nmcd.dwDrawStage )
-		{
-			if ( !m_Ports[ pLVCD->nmcd.dwItemSpec ] ->m_bLogStarted )
-			{
-				pLVCD->clrText = RGB( 128, 128, 128 );
-			}
-
-			*pResult = CDRF_DODEFAULT;
-		}
-	}
+	m_sTotalFileSize.Format(_T("%d calls"), m_Ports[m_iCurItemSel]->GetFileTotalBytes());
+	m_sTotal2FileSize.Format(_T("%d bytes"), m_Ports[m_iCurItemSel]->GetFileTotal2Bytes());
+	m_sRecvBytes.Format(_T("%d bytes"), m_Ports[m_iCurItemSel]->GetFileWrittenBytes());
+	m_sErrorStatus = m_Ports[m_iCurItemSel]->m_sStatusMessage;
 }

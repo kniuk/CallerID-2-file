@@ -18,10 +18,14 @@ class CLabel : public CStatic
 public:
 
 
-	static enum LinkStyle { LinkNone, HyperLink, MailLink };
-	static enum FlashType {None, Text, Background };
-	static enum Type3D { Raised, Sunken};
-	static enum BackFillMode { Normal, Gradient };
+	//static
+	enum LinkStyle { LinkNone, HyperLink, MailLink };
+	//static
+	enum FlashType {None, Text, Background };
+	//static
+	enum Type3D { Raised, Sunken};
+	//static
+	enum BackFillMode { Normal, Gradient };
 
 	CLabel();
 	virtual CLabel& SetBkColor(COLORREF crBkgnd, COLORREF crBkgndHigh = 0, BackFillMode mode = Normal);
