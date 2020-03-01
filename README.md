@@ -1,4 +1,10 @@
-# RS232 Data Logger
+# CallerID 2 file
+
+forked from RS232 Data Logger
+compile with VisualStudio 2019
+Remodeled the original app (RS232 Data Logger) for the purpose of CallerID recognition with support of Connexant chip based modem. Each call produces a file with data/time and cid in file's name. There is additional file with all numbers and a debug file with all communication data. App has auto hide to tray featue after startup.
+
+below is the original text from RS232 Data Logger project:
 
 ## How Serial Port Logger solves it
 
